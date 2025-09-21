@@ -1,6 +1,4 @@
-package com.misenpai.anivault.domain.repository
-
-
+package com.misenpai.anivault.data.repository
 
 import com.misenpai.anivault.core.util.Resource
 import com.misenpai.anivault.data.local.dao.UserDao

@@ -6,17 +6,21 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.misenpai.anivault.presentation.screens.onboarding.GetStartedScreen
+import com.misenpai.anivault.presentation.screens.auth.LoginScreen
+import com.misenpai.anivault.presentation.screens.auth.SignupScreen
+import com.misenpai.anivault.presentation.screens.main.MainScreen
 
 @Composable
 fun AniVaultNavigation(
     navController: NavHostController,
     startDestination: String
-){
+) {
     NavHost(
-        navController=navController,
-        startDestination=startDestination
-    ){
-        composable (Screen.GetStarted.route){
+        navController = navController,
+        startDestination = startDestination
+    ) {
+        composable(Screen.GetStarted.route) {
             GetStartedScreen(
                 onGetStartedClick = {
                     navController.navigate(Screen.Login.route) {
@@ -25,6 +29,7 @@ fun AniVaultNavigation(
                 }
             )
         }
+
         composable(Screen.Login.route) {
             LoginScreen(
                 onLoginSuccess = {
@@ -53,46 +58,6 @@ fun AniVaultNavigation(
 
         composable(Screen.Main.route) {
             MainScreen()
-        }
-
-        composable(
-            route = Screen.AnimeDetails.route,
-            arguments = listOf(
-                navArgument("animeId") {
-                    type = NavType.IntType
-                }
-            )
-        ) { backStackEntry ->
-            val animeId = backStackEntry.arguments?.getInt("animeId") ?: 0
-            AnimeDetailsScreen(
-                animeId = animeId,
-                onBackClick = {
-                    navController.popBackStack()
-                },
-                onAddToListClick = {
-                    navController.navigate(Screen.AddAnimeStatus.createRoute(animeId))
-                }
-            )
-        }
-
-        composable(
-            route = Screen.AddAnimeStatus.route,
-            arguments = listOf(
-                navArgument("animeId") {
-                    type = NavType.IntType
-                }
-            )
-        ) { backStackEntry ->
-            val animeId = backStackEntry.arguments?.getInt("animeId") ?: 0
-            AddAnimeStatusScreen(
-                animeId = animeId,
-                onBackClick = {
-                    navController.popBackStack()
-                },
-                onSaveSuccess = {
-                    navController.popBackStack()
-                }
-            )
         }
     }
 }

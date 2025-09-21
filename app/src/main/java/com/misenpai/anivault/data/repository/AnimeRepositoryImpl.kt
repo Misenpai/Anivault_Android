@@ -1,15 +1,19 @@
-package com.misenpai.anivault.domain.repository
+package com.misenpai.anivault.data.repository
 
+import com.misenpai.anivault.core.constants.Constants
 import com.misenpai.anivault.core.util.Resource
 import com.misenpai.anivault.data.local.dao.AnimeDao
 import com.misenpai.anivault.data.local.entities.AnimeStatusEntity
+import com.misenpai.anivault.data.local.preferences.UserPreferences
 import com.misenpai.anivault.data.remote.api.AniVaultApi
 import com.misenpai.anivault.data.remote.api.JikanApi
 import com.misenpai.anivault.data.remote.dto.AddAnimeStatusRequest
 import com.misenpai.anivault.data.remote.dto.UpdateAnimeStatusRequest
 import com.misenpai.anivault.domain.model.Anime
 import com.misenpai.anivault.domain.model.AnimeDetails
+import com.misenpai.anivault.domain.model.AnimeImages
 import com.misenpai.anivault.domain.model.AnimeStatus
+import com.misenpai.anivault.domain.model.ImageUrls
 import com.misenpai.anivault.domain.repository.AnimeRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -20,7 +24,8 @@ import javax.inject.Inject
 class AnimeRepositoryImpl @Inject constructor(
     private val jikanApi: JikanApi,
     private val aniVaultApi: AniVaultApi,
-    private val animeDao: AnimeDao
+    private val animeDao: AnimeDao,
+    private val userPreferences: UserPreferences
 ) : AnimeRepository {
 
     override suspend fun getAnimeById(id: Int): Resource<AnimeDetails> {
@@ -31,19 +36,21 @@ class AnimeRepositoryImpl @Inject constructor(
                 AnimeDetails(
                     malId = anime.malId,
                     url = anime.url ?: "",
-                    title = anime.title,
-                    titleEnglish = anime.titleEnglish,
-                    titleJapanese = anime.titleJapanese,
-                    images = com.misenpai.anivault.domain.model.AnimeImages(
-                        jpg = com.misenpai.anivault.domain.model.ImageUrls(
+                    title = anime.title.take(Constants.MAX_TITLE_LENGTH),
+                    titleEnglish = anime.titleEnglish?.take(Constants.MAX_TITLE_LENGTH),
+                    titleJapanese = anime.titleJapanese?.take(Constants.MAX_TITLE_LENGTH),
+                    images = AnimeImages(
+                        jpg = ImageUrls(
                             imageUrl = anime.images.jpg.imageUrl,
                             smallImageUrl = anime.images.jpg.smallImageUrl ?: "",
-                            largeImageUrl = anime.images.jpg.largeImageUrl ?: anime.images.jpg.imageUrl
+                            largeImageUrl = anime.images.jpg.largeImageUrl
+                                ?: anime.images.jpg.imageUrl
                         ),
-                        webp = com.misenpai.anivault.domain.model.ImageUrls(
+                        webp = ImageUrls(
                             imageUrl = anime.images.webp.imageUrl,
                             smallImageUrl = anime.images.webp.smallImageUrl ?: "",
-                            largeImageUrl = anime.images.webp.largeImageUrl ?: anime.images.webp.imageUrl
+                            largeImageUrl = anime.images.webp.largeImageUrl
+                                ?: anime.images.webp.imageUrl
                         )
                     ),
                     type = anime.type ?: "",
@@ -78,7 +85,7 @@ class AnimeRepositoryImpl @Inject constructor(
 
     override suspend fun searchAnime(query: String, page: Int): Resource<List<Anime>> {
         return try {
-            val response = jikanApi.searchAnime(query, page)
+            val response = jikanApi.searchAnime(query, page, Constants.PAGE_SIZE)
             Resource.Success(response.data.map { it.toAnime() })
         } catch (e: HttpException) {
             Resource.Error(e.localizedMessage ?: "An unexpected error occurred")
@@ -89,7 +96,7 @@ class AnimeRepositoryImpl @Inject constructor(
 
     override suspend fun getCurrentSeasonAnime(page: Int): Resource<List<Anime>> {
         return try {
-            val response = jikanApi.getCurrentSeasonAnime(page)
+            val response = jikanApi.getCurrentSeasonAnime(page, Constants.PAGE_SIZE)
             Resource.Success(response.data.map { it.toAnime() })
         } catch (e: HttpException) {
             Resource.Error(e.localizedMessage ?: "An unexpected error occurred")
@@ -100,7 +107,7 @@ class AnimeRepositoryImpl @Inject constructor(
 
     override suspend fun getUpcomingSeasonAnime(page: Int): Resource<List<Anime>> {
         return try {
-            val response = jikanApi.getUpcomingSeasonAnime(page)
+            val response = jikanApi.getUpcomingSeasonAnime(page, Constants.PAGE_SIZE)
             Resource.Success(response.data.map { it.toAnime() })
         } catch (e: HttpException) {
             Resource.Error(e.localizedMessage ?: "An unexpected error occurred")
@@ -122,7 +129,7 @@ class AnimeRepositoryImpl @Inject constructor(
 
     override suspend fun getTopAnime(page: Int): Resource<List<Anime>> {
         return try {
-            val response = jikanApi.getTopAnime(page)
+            val response = jikanApi.getTopAnime(page, Constants.PAGE_SIZE)
             Resource.Success(response.data.map { it.toAnime() })
         } catch (e: HttpException) {
             Resource.Error(e.localizedMessage ?: "An unexpected error occurred")
@@ -139,20 +146,20 @@ class AnimeRepositoryImpl @Inject constructor(
 
     override suspend fun addAnimeToList(animeStatus: AnimeStatus): Resource<Unit> {
         return try {
-            // Save to local database
+            val token = userPreferences.getToken() ?: return Resource.Error("No auth token found")
+
             animeDao.insertAnimeStatus(
                 AnimeStatusEntity(
                     userId = animeStatus.userId,
                     malId = animeStatus.malId,
                     animeName = animeStatus.animeName,
-                    animeImage = "", // You'd need to pass this
+                    animeImage = "",
                     totalWatchedEpisodes = animeStatus.totalWatchedEpisodes,
                     totalEpisodes = animeStatus.totalEpisodes,
                     status = animeStatus.status
                 )
             )
 
-            // Sync with backend
             val request = AddAnimeStatusRequest(
                 userId = animeStatus.userId,
                 malId = animeStatus.malId,
@@ -161,7 +168,7 @@ class AnimeRepositoryImpl @Inject constructor(
                 totalEpisodes = animeStatus.totalEpisodes,
                 status = animeStatus.status.name
             )
-            aniVaultApi.addAnimeStatus(request, "")
+            aniVaultApi.addAnimeStatus(request, "Bearer $token")
 
             Resource.Success(Unit)
         } catch (e: Exception) {
@@ -171,6 +178,8 @@ class AnimeRepositoryImpl @Inject constructor(
 
     override suspend fun updateAnimeStatus(animeStatus: AnimeStatus): Resource<Unit> {
         return try {
+            val token = userPreferences.getToken() ?: return Resource.Error("No auth token found")
+
             val existing = animeDao.getAnimeStatus(animeStatus.userId, animeStatus.malId)
             existing?.let { entity ->
                 animeDao.updateAnimeStatus(
@@ -188,7 +197,7 @@ class AnimeRepositoryImpl @Inject constructor(
                 totalWatchedEpisodes = animeStatus.totalWatchedEpisodes,
                 status = animeStatus.status.name
             )
-            aniVaultApi.updateAnimeStatus(request, "")
+            aniVaultApi.updateAnimeStatus(request, "Bearer $token")
 
             Resource.Success(Unit)
         } catch (e: Exception) {
@@ -198,10 +207,12 @@ class AnimeRepositoryImpl @Inject constructor(
 
     override suspend fun deleteAnimeFromList(userId: Int, malId: Int): Resource<Unit> {
         return try {
+            val token = userPreferences.getToken() ?: return Resource.Error("No auth token found")
+
             val entity = animeDao.getAnimeStatus(userId, malId)
             entity?.let { animeDao.deleteAnimeStatus(it) }
 
-            aniVaultApi.deleteAnimeStatus(userId, malId, "")
+            aniVaultApi.deleteAnimeStatus(userId, malId, "Bearer $token")
             Resource.Success(Unit)
         } catch (e: Exception) {
             Resource.Error(e.localizedMessage ?: "Failed to delete anime from list")

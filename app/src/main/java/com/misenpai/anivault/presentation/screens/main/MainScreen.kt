@@ -3,24 +3,24 @@ package com.misenpai.anivault.presentation.screens.main
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Icon
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.wear.compose.material.Text
 import com.misenpai.anivault.R
 import com.misenpai.anivault.presentation.navigation.BottomNavScreen
-
+import com.misenpai.anivault.presentation.screens.home.HomeScreen
+import com.misenpai.anivault.presentation.screens.search.SearchScreen
+import com.misenpai.anivault.presentation.screens.library.LibraryScreen
+import com.misenpai.anivault.presentation.screens.profile.ProfileScreen
 
 @Composable
-fun MainScreen(){
+fun MainScreen() {
     val navController = rememberNavController()
     val bottomNavItems = listOf(
         BottomNavScreen.Home,
@@ -44,7 +44,7 @@ fun MainScreen(){
                             )
                         },
                         label = { Text(screen.title) },
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                        selected = currentDestination?.route == screen.route,
                         onClick = {
                             navController.navigate(screen.route) {
                                 popUpTo(navController.graph.startDestinationId) {
